@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Sohocthanbi 4GAME</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  padding: 10px;
+  background: #f8f9fa;
+  color: #222;
+}
+table {
+  border-collapse: collapse;
+  margin-bottom: 5px;
+  table-layout: fixed;
+  display: block;
+  overflow-x: auto;
+}
+td {
+  width: 28px;
+  height: 28px;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid #ddd;
+  font-weight: bold;
+  font-size: 16px;
+}
+td.blank { border: none; height: 5px; }
+.correct { background-color: lightgreen; }
+.wrong { background-color: pink; }
+
+.btnRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  justify-content: center;
+}
+.btnLH {
+  flex: 0 0 120px;
+  height: 60px;
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.btnLH:nth-child(3){ background-color: #FF8C00; }
+.btnLH:nth-child(4){ background-color: #8B0000; }
+
+.totalMoney { font-weight: bold; margin-top: 5px; font-size: 14px; }
+.prediction { display: inline-block; font-size: 30px; font-weight: bold; padding: 5px 15px; border-radius: 6px; color: white; }
+
+.flex-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.flex-row select, #customPP { font-size: 16px; }
+h3 { margin: 5px 0; }
+
+/* ===== CẦU 6 HÀNG ===== */
+#bigRoadMain, #bigRoadResult {
+  border-collapse: collapse;
+  margin: 10px 0;
+  table-layout: fixed;
+  display: block;
+  overflow-x: auto;
+  background: #fafafa;
+  outline: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+#bigRoadMain td, #bigRoadResult td {
+  width: 22px;
+  height: 22px;
+  text-align: center;
+  vertical-align: middle;
+  border: none;
+  font-size: 13px;
+  font-weight: bold;
+  border-radius: 3px;
+}
+
+/* ✨ Hiệu ứng nhấp nháy cảnh báo */
+@keyframes blinkWarning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.blink {
+  animation: blinkWarning 1.2s infinite;
+}
+</style>
+</head>
+<body>
+
+<div class="flex-row">
+  <label>Chọn game:</label>
+  <select id="gameSelect" onchange="changeGame()">
+    <option value="Long/Hổ">Long/Hổ</option>
+    <option value="Baccarat">Baccarat</option>
+    <option value="Tài Xỉu">Tài Xỉu</option>
+    <option value="Chẵn/Lẻ">Chẵn/Lẻ</option>
+  </select>
+</div>
+
+<div class="btnRow">
+  <button class="btnLH" id="btn1" onclick="addNumber(currentGameBtn1)">L</button>
+  <button class="btnLH" id="btn2" onclick="addNumber(currentGameBtn2)">H</button>
+  <button class="btnLH" onclick="deleteLast()">Xóa 1</button>
+  <button class="btnLH" onclick="clearAll()">Xóa bàn</button>
+</div>
+
+<h3 id="mainTitle">Phương pháp: --</h3>
+
+<div class="flex-row">
+  <select id="lhSelect" onchange="setPP()">
+    <option value="">-- Chọn PP --</option>
+  </select>
+  <input type="text" id="customPP" placeholder="Nhập PP tùy chỉnh (vd: BPBBPP)"
+         style="padding:4px 8px;border:1px solid #999;border-radius:6px;width:180px;">
+  <button onclick="applyCustomPP()" style="padding:5px 10px;font-size:15px;border-radius:6px;cursor:pointer;">Áp dụng</button>
+  <div id="predLH" class="prediction"></div>
+</div>
+
+<h3>Bảng chính</h3>
+<table id="mainTable"></table>
+
+<!-- 🔹 Cầu 6 hàng (Bảng chính) -->
+<h3>Cầu 6 hàng (Bảng chính)</h3>
+<table id="bigRoadMain"></table>
+<h3>PP lấy số ít</h3>
+<table id="lhTable"></table>
+<div class="totalMoney">Tổng tiền pp1: <span id="totalLH">0</span></div>
+
+<h3>PP ngược màu con đầu hàng</h3>
+<table id="lhTable2"></table>
+<div class="totalMoney">Tổng tiền pp2: <span id="totalLH2">0</span></div>
+
+<!-- 🔹 Cầu 6 hàng (Đúng / Sai) -->
+<h3>Cầu 6 hàng (Đúng / Sai)</h3>
+<table id="bigRoadResult"></table>
+
+<script>
+const rows=3, cols=70;
+const mainTable=document.getElementById('mainTable');
+const lhTable=document.getElementById('lhTable');
+const lhTable2=document.getElementById('lhTable2');
+const bigRoadMain=document.getElementById('bigRoadMain');
+const bigRoadResult=document.getElementById('bigRoadResult');
+const predLH=document.getElementById('predLH');
+const totalLH=document.getElementById('totalLH');
+const totalLH2=document.getElementById('totalLH2');
+const lhSelect=document.getElementById('lhSelect');
+const btn1El=document.getElementById('btn1');
+const btn2El=document.getElementById('btn2');
+
+//--- Cấu hình 4 game ---
+const gameConfig = {
+  'Baccarat': {
+    btn1:'P', color1:'blue', 
+    btn2:'B', color2:'red', 
+    pp:[
+      'BPB','PPB','BBP','BPBBPP','BPPBBBPPPP','BBPBPPP','PPPBBB',
+      'BPBPBP','BBPP','PPBB','BPBBBP','PPBBPP','BPPBPP','BPBBBPPB',
+      'BPPBPPP','BBPPBB','BPBBP','BPPBBP','PPBBBP','BPBBPPP',
+      'BPPBBPPBPP','BPBBPBBPPP','BPPBPBBPPP','BPBBPPBPBB'
+    ]
+  },
+  'Tài Xỉu': {
+    btn1:'X', color1:'blue', 
+    btn2:'T', color2:'red', 
+    pp:[
+      'TXT','TTX','XXT','TXTTXX','TXXTTTXXXX','TTXTXXX','TTTXXX',
+      'TXTXTX','TTXX','XXTT','TXTXXT','TTXXTT','TXTTXT','TTXXTXT',
+      'TXTXXX','TTTXTT','TTXXXT','TXXTTX',
+      'XTTXXTTXTT','XTXXTXXTTT','XTTXTXXTTT','XTXXTTXTXX'
+    ]
+  },
+  'Chẵn/Lẻ': {
+    btn1:'L', color1:'blue', 
+    btn2:'C', color2:'red', 
+    pp:[
+      'CLC','LLC','CCL','CLCCLL','CLLCCCLLLL','CCLCCLLLL','LLLCCC',
+      'CLCLCL','CCLL','LLCC','CLCCLC','CCLLCC','CLLCLC','CCLLCL',
+      'CLCLLC','LLCLLC','CCLLLC',
+      'CLLCCLLCLC','CLCCLCCLLL','CLLCLCCLLL','CLCCLLCLCC'
+    ]
+  },
+  'Long/Hổ': {
+    btn1:'L', color1:'red', 
+    btn2:'H', color2:'gold', 
+    pp:[
+      'LHL','HHL','LLH','LHLLHH','LHHLLLHHHH','LLHLHHH','LLLHHH',
+      'LHLHLH','LLHH','HHLL','LHLLHL','HHLLHH','LHHLLH','LLHHLL',
+      'LHHLLHHL','LHHLLL','LLLHHHH',
+      'LHHLLHHLHH','LHLLHLHHLL','LHHLLHLHHL','LHLLHHLHLL'
+    ]
+  }
+};
+
+let LH_PP=[], currentIndex=0, inputHistory=[], currentGame='Long/Hổ', currentGameBtn1='L', currentGameBtn2='H';
+function init(){
+  createMainTable();
+  createSubTable(lhTable);
+  createSubTable(lhTable2,4);
+  createBigRoad(bigRoadMain);
+  createBigRoad(bigRoadResult);
+  changeGame();
+}
+// ===== TẠO BẢNG =====
+function createMainTable(){
+  mainTable.innerHTML="";
+  for(let r=0;r<rows;r++){
+    let tr=document.createElement('tr');
+    for(let c=0;c<cols;c++){ tr.appendChild(document.createElement('td')); }
+    mainTable.appendChild(tr);
+  }
+}
+function createSubTable(table,rowCount=3){
+  table.innerHTML="";
+  for(let r=0;r<rowCount;r++){
+    let tr=document.createElement('tr');
+    for(let c=0;c<cols;c++){ tr.appendChild(document.createElement('td')); }
+    table.appendChild(tr);
+  }
+  let trBlank=document.createElement('tr');
+  for(let c=0;c<cols;c++){ let td=document.createElement('td'); td.className='blank'; trBlank.appendChild(td); }
+  table.appendChild(trBlank);
+  let trMoney=document.createElement('tr');
+  for(let c=0;c<cols;c++){ trMoney.appendChild(document.createElement('td')); }
+  table.appendChild(trMoney);
+}
+
+// ===== CẦU 6 HÀNG (CHUẨN CASINO) =====
+const bigRoadRows = 6, bigRoadCols = 100;
+function createBigRoad(table){
+  table.innerHTML = '';
+  for(let r=0; r<bigRoadRows; r++){
+    const tr = document.createElement('tr');
+    for(let c=0; c<bigRoadCols; c++){
+      const td=document.createElement('td');
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+}
+
+// 🧠 Hàm cập nhật cầu 6 hàng (copy màu từ bảng nguồn)
+function updateBigRoadFromSource(table, sourceTable, rowLimit=3){
+  createBigRoad(table);
+  let lastChar=null, col=0, row=0;
+
+  const totalCols = sourceTable.rows[0].cells.length;
+  for(let c=0; c<totalCols; c++){
+    for(let r=0; r<rowLimit; r++){
+      const cell=sourceTable.rows[r]?.cells[c];
+      if(!cell || cell.textContent==='') continue;
+
+      const ch=cell.textContent;
+      let bg=cell.style.backgroundColor;
+      let color=cell.style.color;
+
+      if(!bg){
+        if(cell.classList.contains('correct')) bg='lightgreen';
+        else if(cell.classList.contains('wrong')) bg='pink';
+      }
+      if(!color) color='black';
+
+      // Quy tắc cầu casino
+      if(lastChar===null){ lastChar=ch; }
+      else if(ch===lastChar){
+        row++;
+        if(row>=bigRoadRows){ row=0; col++; }
+      } else {
+        lastChar=ch; row=0; col++;
+      }
+
+      if(col<bigRoadCols && row<bigRoadRows){
+        const td=table.rows[row].cells[col];
+        td.textContent=ch;
+        td.style.backgroundColor=bg;
+        td.style.color=color;
+      }
+    }
+  }
+}
+
+// Cầu chính lấy dữ liệu từ bảng kết quả
+function updateBigRoadMain(){
+  updateBigRoadFromSource(bigRoadMain, mainTable, 3);
+}
+
+// Cầu đúng/sai có màu đầy đủ
+function updateBigRoadResult(){
+  updateBigRoadFromSource(bigRoadResult, lhTable, 3);
+}
+function changeGame(){
+  currentGame=document.getElementById('gameSelect').value;
+  const conf=gameConfig[currentGame];
+  currentGameBtn1=conf.btn1; currentGameBtn2=conf.btn2;
+  btn1El.textContent=conf.btn1; btn1El.style.backgroundColor=conf.color1;
+  btn2El.textContent=conf.btn2; btn2El.style.backgroundColor=conf.color2;
+  lhSelect.innerHTML='<option value="">-- Chọn PP --</option>';
+  conf.pp.forEach(p=>{ let op=document.createElement('option'); op.value=p; op.textContent=p; lhSelect.appendChild(op); });
+  clearAll();
+}
+function setPP(){
+  const pp=lhSelect.value;
+  LH_PP=pp.replace(/\s/g,'').split('');
+  document.getElementById('mainTitle').textContent="Phương pháp: "+pp;
+  recheckAll(); updatePrediction(); updateMoneyLH1(); updateLHTable2FromLH1();
+}
+function applyCustomPP(){
+  const input=document.getElementById('customPP').value.trim().toUpperCase();
+  if(input===''){ alert('Vui lòng nhập chuỗi PP!'); return; }
+  LH_PP=input.split('');
+  document.getElementById('mainTitle').textContent="Phương pháp (Tùy chỉnh): "+input;
+  recheckAll(); updatePrediction(); updateMoneyLH1(); updateLHTable2FromLH1();
+}
+function addNumber(char){
+  if(currentIndex>=rows*cols) return;
+  const row=currentIndex%rows, col=Math.floor(currentIndex/rows);
+  const td=mainTable.rows[row].cells[col]; td.textContent=char;
+  const conf=gameConfig[currentGame];
+  let bg=(char===conf.btn1)?conf.color1:(char===conf.btn2)?conf.color2:'black';
+  let color=(bg==='gold'||bg==='red')?'black':'white';
+  td.style.backgroundColor=bg; td.style.color=color;
+  inputHistory.push(char);
+  updateRef(row,col,char);
+  updateMoneyLH1(); updateLHTable2FromLH1();
+  currentIndex++; updatePrediction();
+  updateBigRoadMain(); updateBigRoadResult();
+}
+function updateRef(row,col,char){
+  if(LH_PP.length>0){
+    const idx=row+col*rows;
+    const val=char===LH_PP[idx%LH_PP.length]?'✓':'✗';
+    const td=lhTable.rows[row].cells[col];
+    td.textContent=val; td.className=(val==='✓')?'correct':'wrong';
+  }
+}
+function updateMoneyLH1(){
+  const moneyRow=lhTable.rows[4]; let totalMoney=0;
+  for(let c=0;c<cols;c++){
+    let colVals=[lhTable.rows[0].cells[c].textContent,lhTable.rows[1].cells[c].textContent,lhTable.rows[2].cells[c].textContent];
+    if(colVals.every(v=>v==='')){ moneyRow.cells[c].textContent=''; continue; }
+    if(colVals.every(v=>v==='✓')||colVals.every(v=>v==='✗')){ moneyRow.cells[c].textContent=''; continue; }
+    let countCheck=colVals.filter(v=>v==='✓').length;
+    let minority=(countCheck<2)?'✓':'✗';
+    if(c+1<cols){
+      let nextVals=[lhTable.rows[0].cells[c+1].textContent,lhTable.rows[1].cells[c+1].textContent,lhTable.rows[2].cells[c+1].textContent];
+      if(nextVals.includes(minority)){ moneyRow.cells[c].textContent='+1'; moneyRow.cells[c].style.color='green'; totalMoney+=1; }
+      else { moneyRow.cells[c].textContent='-7'; moneyRow.cells[c].style.color='red'; totalMoney-=7; }
+    }
+  }
+  totalLH.textContent=totalMoney;
+}
+function updateLHTable2FromLH1(){
+  let total=inputHistory.length;
+  for(let i=0;i<total;i++){
+    let val=lhTable.rows[i%3].cells[Math.floor(i/3)].textContent;
+    let r=i%4, c=Math.floor(i/4);
+    const td=lhTable2.rows[r].cells[c]; td.textContent=val; td.className=(val==='✓')?'correct':(val==='✗')?'wrong':'';
+  }
+  for(let c=0;c<cols;c++){ lhTable2.rows[4].cells[c].textContent=''; }
+  const moneyRow=lhTable2.rows[5];
+  for(let c=0;c<cols;c++){
+    const ref=lhTable2.rows[0].cells[c].textContent;
+    const compare=[lhTable2.rows[1].cells[c].textContent,lhTable2.rows[2].cells[c].textContent,lhTable2.rows[3].cells[c].textContent];
+    if(ref===''){ moneyRow.cells[c].textContent=''; continue; }
+    const allSame=compare.every(x=>x===ref);
+    moneyRow.cells[c].textContent=allSame?-7:1;
+    moneyRow.cells[c].style.color=allSame?'red':'green';
+  }
+  let totalMoney=0;
+  for(let c=0;c<cols;c++){ totalMoney+=parseInt(moneyRow.cells[c].textContent)||0; }
+  totalLH2.textContent=totalMoney;
+}
+function updatePrediction(){
+  if(LH_PP.length===0){ predLH.textContent=''; return; }
+  const nextIndex=currentIndex;
+  const nextChar=LH_PP[nextIndex%LH_PP.length];
+  let totalCount=0,correctCount=0;
+  for(let i=0;i<inputHistory.length;i++){
+    const row=i%3,col=Math.floor(i/3);
+    const valLH=lhTable.rows[row].cells[col].textContent;
+    if(valLH==='✓'||valLH==='✗'){ totalCount++; if(valLH==='✓')correctCount++; }
+  }
+  let percent=totalCount>0?Math.round(correctCount/totalCount*100):0;
+  let otherPercent=100-percent;
+  const conf=gameConfig[currentGame];
+  let opposite=(nextChar===conf.btn1)?conf.btn2:conf.btn1;
+  let bg=(nextChar===conf.btn1)?conf.color1:(nextChar===conf.btn2)?conf.color2:'black';
+  let color=(bg==='gold'||bg==='red')?'black':'white';
+  let oppBg=(opposite===conf.btn1)?conf.color1:(opposite===conf.btn2)?conf.color2:'black';
+  let oppColor=(oppBg==='gold'||oppBg==='red')?'black':'white';
+  predLH.innerHTML=
+    `<span style="background-color:${bg};color:${color};padding:2px 6px;border-radius:4px;">${nextChar} ${percent}%</span>`+
+    ` <span style="color:blue;font-weight:bold;margin:0 2px;">Theo</span>`+
+    `<span style="color:gold;font-weight:bold;margin-right:6px;">X</span>`+
+    `<span style="background-color:${oppBg};color:${oppColor};padding:2px 6px;border-radius:4px;">${opposite} ${otherPercent}%</span>`;
+}
+function deleteLast(){ 
+  if(currentIndex<=0)return;
+  currentIndex--; 
+  const row=currentIndex%rows,col=Math.floor(currentIndex/rows);
+  mainTable.rows[row].cells[col].textContent='';
+  mainTable.rows[row].cells[col].style.backgroundColor='';
+  mainTable.rows[row].cells[col].style.color='';
+  inputHistory.pop();
+  recheckAll(); updatePrediction(); updateMoneyLH1(); updateLHTable2FromLH1();
+  updateBigRoadMain(); updateBigRoadResult();
+}
+function clearAll(){
+  currentIndex=0; inputHistory=[];
+  createMainTable(); createSubTable(lhTable); createSubTable(lhTable2,4);
+  createBigRoad(bigRoadMain); createBigRoad(bigRoadResult);
+  updatePrediction(); updateMoneyLH1(); updateLHTable2FromLH1();
+}
+function recheckAll(){
+  for(let i=0;i<inputHistory.length;i++){
+    const row=i%rows,col=Math.floor(i/rows);
+    const val=inputHistory[i];
+    const td=mainTable.rows[row].cells[col];
+    td.textContent=val;
+    const conf=gameConfig[currentGame];
+    let bg=(val===conf.btn1)?conf.color1:(val===conf.btn2)?conf.color2:'black';
+    let color=(bg==='gold'||bg==='red')?'black':'white';
+    td.style.backgroundColor=bg;td.style.color=color;
+    updateRef(row,col,val);
+  }
+  updateMoneyLH1();
+  updateBigRoadMain(); updateBigRoadResult();
+}
+init();
+</script>
+
+<!-- ⚠️ CẢNH BÁO & KỶ LUẬT Sohocthanbi 4GAME -->
+<div style="margin-top:25px;padding:16px;background:#fff8e1;border:1px solid #ffda6a;border-radius:10px;color:#5d4037;font-size:14px;line-height:1.6;box-shadow:0 2px 6px rgba(0,0,0,0.1)">
+  <b class="blink" style="color:#d32f2f;font-size:16px;">⚠️ CẢNH BÁO:</b> 
+  Công cụ <b>Sohocthanbi 4GAME</b> chỉ được sử dụng cho mục đích thống kê và nghiên cứu mô hình. 
+  Không khuyến khích hoặc chịu trách nhiệm cho bất kỳ hoạt động cá cược thật nào. 
+  Hãy sử dụng công cụ một cách tỉnh táo và có trách nhiệm. 
+  <br><br>
+  <b style="color:#1565c0;font-size:15px;">💡 KỶ LUẬT & QUẢN LÝ VỐN:</b><br>
+  - Luôn đặt giới hạn lợi nhuận và thua lỗ cho mỗi phiên. <br>
+  - Khi đạt <b>mục tiêu lợi nhuận</b> → dừng lại, không tham. <br>
+  - Khi chạm <b>mức lỗ cho phép</b> → ngắt kết nối, không gỡ. <br>
+  - Không đánh theo cảm xúc, không tăng vốn bừa bãi. <br>
+  - Chỉ người có <b>kỷ luật</b> mới có thể tồn tại lâu dài trong trò chơi xác suất. 
+  <br><br>
+  <i style="color:#6d4c41">“Thắng không kiêu, thua không nản — giữ kỷ luật là đã hơn 90% người chơi.”</i>
+</div>
+
+<!-- 📜 Ghi chú -->
+<div style="text-align:center;margin-top:10px;font-size:13px;color:#666;">
+  🧩 Sohocthanbi 4GAME – Phiên bản (Cập nhật 25/10/2025)
+</div>
+
+</body>
+</html>
